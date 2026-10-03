@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SwarmSync — Fleet Dashboard | PS 26123</title>
+<style>
+/* ── Design tokens ─────────────────────────────────────────────── */
+:root{
+  --bg:#f1f5f9;--surface:#fff;--surface2:#f8fafc;
+  --border:#e2e8f0;--border2:#cbd5e1;
+  --text:#1e293b;--muted:#64748b;--faint:#94a3b8;
+  --green:#16a34a;--green-bg:#dcfce7;
+  --orange:#ea580c;--orange-bg:#ffedd5;
+  --red:#dc2626;--red-bg:#fee2e2;
+  --blue:#2563eb;--blue-bg:#dbeafe;
+  --yellow:#ca8a04;--yellow-bg:#fef9c3;
+  --slate:#475569;
+  --primary:#0f172a;
+  --radius:8px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  --shadow-md:0 4px 6px rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Inter",system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column;font-size:13px;line-height:1.5}
+
+/* ── Top bar ───────────────────────────────────────────────────── */
+header{
+  background:var(--primary);color:#fff;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;height:52px;flex-shrink:0;
+}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px}
+.logo-badge{
+  background:#10b981;color:#fff;width:28px;height:28px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px
+}
+.header-right{display:flex;align-items:center;gap:20px;font-size:12px;font-weight:500}
+.conn-badge{display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;
+  background:rgba(255,255,255,.1)}
+.dot{width:8px;height:8px;border-radius:50%;background:#10b981;flex-shrink:0;
+  box-shadow:0 0 0 2px rgba(16,185,129,.3)}
+.dot.off{background:#f87171;box-shadow:0 0 0 2px rgba(248,113,113,.3)}
+.mode-label{opacity:.7;letter-spacing:.5px;text-transform:uppercase;font-size:11px}
+
+/* ── Breadcrumb ────────────────────────────────────────────────── */
+.crumb{padding:10px 24px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);
+  background:var(--surface);display:flex;justify-content:space-between;align-items:center}
+.crumb span{opacity:.5}
+
+/* ── Page layout ───────────────────────────────────────────────── */
+.page{padding:20px 24px;flex:1;display:flex;flex-direction:column;gap:16px;min-height:0}
+.page-head{display:flex;justify-content:space-between;align-items:flex-end}
+.page-head h1{font-size:22px;font-weight:700;letter-spacing:-.3px}
+.mode-toggle{display:flex;background:#e2e8f0;border-radius:var(--radius);padding:3px;gap:2px}
+.mode-toggle button{
+  border:none;background:transparent;padding:6px 16px;border-radius:6px;
+  cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);transition:.15s
+}
+.mode-toggle button.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+
+/* ── KPI strip ─────────────────────────────────────────────────── */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 18px;box-shadow:var(--shadow)}
+.kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.kpi-row{display:flex;align-items:baseline;gap:8px;margin-top:4px}
+.kpi-val{font-size:26px;font-weight:700;line-height:1}
+.kpi-sub{font-size:11px;color:var(--faint)}
+.kpi-val.ok{color:var(--green)}
+.kpi-val.bad{color:var(--red)}
+
+/* ── Main two-col ──────────────────────────────────────────────── */
+.main{display:grid;grid-template-columns:1fr 320px;gap:16px;flex:1;min-height:0}
+
+/* ── Card shell ────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.card-head{padding:12px 16px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.card-title{font-size:13px;font-weight:700}
+.card-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.card-badge{
+  font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  padding:3px 10px;border-radius:12px;background:var(--green-bg);color:var(--green)
+}
+.card-badge.idle{background:var(--surface2);color:var(--faint)}
+.card-badge.live{background:var(--green-bg);color:var(--green)}
+.card-body{padding:16px;flex:1;overflow:auto}
+
+/* ── Grid panel ────────────────────────────────────────────────── */
+.grid-panel{display:flex;flex-direction:column}
+.canvas-wrap{
+  background:#f8fafc;border:1px solid var(--border);border-radius:6px;
+  display:flex;justify-content:center;align-items:center;padding:12px;overflow:auto
+}
+canvas{image-rendering:pixelated}
+.legend{display:flex;flex-wrap:wrap;gap:10px 20px;margin-top:10px;font-size:11px;color:var(--muted)}
+.legend-item{display:flex;align-items:center;gap:5px}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.legend-sq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+/* ── Controls bar ──────────────────────────────────────────────── */
+.controls{
+  display:flex;justify-content:space-between;align-items:center;
+  padding-top:12px;border-top:1px solid var(--border);margin-top:12px;flex-shrink:0
+}
+.btn-group{display:flex;gap:6px}
+.btn{
+  border:1px solid var(--border2);background:var(--surface);
+  padding:7px 16px;border-radius:6px;cursor:pointer;
+  font-size:12px;font-weight:600;color:var(--text);
+  display:flex;align-items:center;gap:6px;transition:.15s
+}
+.btn:hover{background:var(--surface2)}
+.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn.primary:hover{background:#1e293b}
+.btn.danger{background:var(--red-bg);color:var(--red);border-color:#fca5a5}
+.btn.danger:hover{background:#fee2e2}
+.btn.green{background:var(--green-bg);color:var(--green);border-color:#bbf7d0}
+.btn-icon{font-size:14px}
+.sim-info{font-size:11px;color:var(--faint)}
+
+/* ── Right column ──────────────────────────────────────────────── */
+.right-col{display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+
+/* Fleet status list */
+.robot-list{display:flex;flex-direction:column;gap:10px}
+.robot-item{
+  padding:10px 12px;border:1px solid var(--border);border-radius:6px;
+  background:var(--surface2);display:flex;flex-direction:column;gap:6px
+}
+.robot-top{display:flex;justify-content:space-between;align-items:center}
+.robot-name{display:flex;align-items:center;gap:8px;font-weight:700;font-size:13px}
+.robot-avatar{
+  width:26px;height:26px;border-radius:6px;display:flex;align-items:center;
+  justify-content:center;color:#fff;font-weight:800;font-size:11px
+}
+.r-state{
+  font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;text-transform:uppercase;letter-spacing:.3px
+}
+.r-state.moving  {background:var(--green-bg);color:var(--green)}
+.r-state.yielding{background:var(--orange-bg);color:var(--orange)}
+.r-state.waiting {background:var(--yellow-bg);color:var(--yellow)}
+.r-state.idle    {background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.r-state.parked  {background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.r-state.dead    {background:var(--red-bg);color:var(--red)}
+.robot-task{font-size:11px;color:var(--muted)}
+.batt-wrap{display:flex;align-items:center;gap:8px}
+.batt-bar{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.batt-fill{height:100%;background:var(--green);border-radius:2px;transition:width .3s}
+.batt-fill.low{background:var(--red)}
+.batt-pct{font-size:10px;font-weight:600;color:var(--muted);width:30px;text-align:right}
+
+/* Task queue */
+.task-list{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.task-row{display:flex;justify-content:space-between;align-items:center;
+  padding:5px 8px;border-radius:4px;background:var(--surface2)}
+.task-id{font-weight:700;font-family:monospace;color:var(--slate)}
+.task-route{color:var(--muted);flex:1;padding:0 8px;font-size:11px}
+.task-status{font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.ts-done{background:var(--green-bg);color:var(--green)}
+.ts-open{background:var(--blue-bg);color:var(--blue)}
+.ts-claimed{background:var(--orange-bg);color:var(--orange)}
+
+/* Bottom row */
+.bottom{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* Coordination feed */
+.feed{font-family:"JetBrains Mono",monospace;font-size:11px;
+  color:var(--muted);line-height:1.7;max-height:180px;overflow-y:auto}
+.feed-line{padding:2px 0;border-bottom:1px dashed var(--border)}
+.feed-line:last-child{border:none}
+.feed-t{color:var(--primary);font-weight:700;margin-right:8px}
+.feed-r0{color:#2563eb}.feed-r1{color:#d97706}.feed-r2{color:#7c3aed}
+.feed-r3{color:#db2777}.feed-r4{color:#059669}
+.feed-yield{color:var(--orange)}
+.feed-done{color:var(--green);font-weight:700}
+.feed-claim{color:var(--blue)}
+.feed-dead{color:var(--red);font-weight:700}
+.feed-staged{color:#7c3aed;font-weight:700}
+
+/* Report table */
+.report-table{width:100%;border-collapse:collapse;font-size:12px}
+.report-table td{padding:7px 4px;border-bottom:1px solid var(--border)}
+.report-table tr:last-child td{border:none}
+.report-table td:last-child{text-align:right;font-weight:700}
+.ok{color:var(--green)}
+.bad{color:var(--red)}
+.verdict{
+  margin-top:12px;padding:10px 14px;border-radius:6px;font-size:12px;font-weight:600;text-align:center
+}
+.verdict.pass{background:var(--green-bg);color:var(--green)}
+.verdict.fail{background:var(--red-bg);color:var(--red)}
+
+/* Config panel */
+.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.cfg-field{display:flex;flex-direction:column;gap:3px}
+.cfg-label{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.4px}
+.cfg-input{
+  border:1px solid var(--border2);border-radius:4px;padding:5px 8px;
+  font-size:12px;font-weight:500;background:var(--surface);color:var(--text)
+}
+.cfg-check{display:flex;align-items:center;gap:6px;padding:5px 0;font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- ══ Header ══ -->
+<header>
+  <div class="logo">
+    <div class="logo-badge">S</div>
+    SwarmSync
+  </div>
+  <div class="header-right">
+    <div class="conn-badge">
+      <div class="dot" id="dot"></div>
+      <span id="link">Connecting…</span>
+    </div>
+    <div class="mode-label">PS 26123 · Warehouse Simulation</div>
+  </div>
+</header>
+
+<!-- ══ Breadcrumb ══ -->
+<div class="crumb">
+  <div>Fleet Control <span>/ Prototype Demo</span></div>
+  <div id="sim-tick-label" style="font-size:11px;color:var(--muted)"></div>
+</div>
+
+<!-- ══ Page ══ -->
+<div class="page">
+
+  <!-- Page heading + mode toggle -->
+  <div class="page-head">
+    <div>
+      <h1>Warehouse Overview</h1>
+    </div>
+    <div class="mode-toggle">
+      <button class="active" id="mode-swarm" onclick="setMode('swarm')">SwarmSync</button>
+      <button id="mode-central" onclick="setMode('central')">Stop-and-wait</button>
+    </div>
+  </div>
+
+  <!-- KPI strip -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-label">Collisions</div>
+      <div class="kpi-row"><div class="kpi-val ok" id="kpi-col">0</div><div class="kpi-sub">inter-robot</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Deliveries</div>
+      <div class="kpi-row"><div class="kpi-val" id="kpi-done">0</div><div class="kpi-sub" id="kpi-done-sub">of 0 tasks</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Simulation Tick</div>
+      <div class="kpi-row"><div class="kpi-val" id="kpi-tick">—</div><div class="kpi-sub">discrete time steps</div></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Deadlocks</div>
+      <div class="kpi-row"><div class="kpi-val ok" id="kpi-dl">0</div><div class="kpi-sub">prolonged stalls</div></div>
+    </div>
+  </div>
+
+  <!-- Main two-column -->
+  <div class="main">
+
+    <!-- LEFT: Grid + controls -->
+    <div class="card grid-panel">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Warehouse Grid</div>
+          <div class="card-sub">Live robot positions and route intent</div>
+        </div>
+        <div class="card-badge live" id="grid-badge">RUNNING</div>
+      </div>
+      <div class="card-body">
+        <div class="canvas-wrap">
+          <canvas id="cv"></canvas>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>Robot 0</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#d97706"></div>Robot 1</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div>Robot 2</div>
+          <div class="legend-item"><div class="legend-sq" style="background:#334155"></div>Aisle</div>
+          <div class="legend-item"><div class="legend-sq" style="background:#7f1d1d"></div>Blocked</div>
+          <div class="legend-item"><div class="legend-sq" style="background:#854d0e"></div>Staging</div>
+          <div class="legend-item"><div class="legend-sq" style="border:2px solid #ea580c;background:transparent"></div>Contested</div>
+          <div class="legend-item"><div class="legend-sq" style="background:#fff;border:1px solid #ccc"></div>Cargo on board</div>
+        </div>
+      </div>
+      <div class="controls" style="padding:0 16px 14px">
+        <div class="btn-group">
+          <button class="btn primary" id="btn-pause" onclick="handlePause()">
+            <span class="btn-icon">⏸</span> Pause
+          </button>
+          <button class="btn danger" onclick="handleStop()">
+            <span class="btn-icon">⏹</span> Stop
+          </button>
+          <button class="btn" onclick="openConfig()">
+            <span class="btn-icon">↺</span> Reset
+          </button>
+        </div>
+        <div class="sim-info" id="sim-info">Seed 1 · 3 robots · 12 tasks · blocks ON</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Fleet + Task queue -->
+    <div class="right-col">
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Fleet Status</div>
+            <div class="card-sub">Robot state and active assignment</div>
+          </div>
+          <div class="card-badge" id="active-badge">0 ACTIVE</div>
+        </div>
+        <div class="card-body">
+          <div class="robot-list" id="robot-list">
+            <div style="color:var(--faint);text-align:center;padding:20px;font-size:12px">
+              Waiting for robots to connect…
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">Task Queue</div>
+            <div class="card-sub">Broadcast-and-nearest-robot claim</div>
+          </div>
+          <div class="card-badge idle" id="task-badge">0 QUEUED</div>
+        </div>
+        <div class="card-body" style="max-height:180px;overflow-y:auto">
+          <div class="task-list" id="task-list">
+            <div style="color:var(--faint);text-align:center;padding:12px;font-size:12px">No tasks yet</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom row -->
+  <div class="bottom">
+
+    <!-- Coordination feed -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Coordination Feed</div>
+          <div class="card-sub">Claims, route changes and local reservations</div>
+        </div>
+        <div class="card-badge live">● LIVE</div>
+      </div>
+      <div class="card-body">
+        <div class="feed" id="feed">
+          <div style="color:var(--faint)">Waiting for events…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Run comparison / report -->
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Run Comparison</div>
+          <div class="card-sub">Same task set, measured simulation ticks</div>
+        </div>
+      </div>
+      <div class="card-body" id="report-panel">
+        <div style="font-size:12px;color:var(--muted);line-height:1.7">
+          Run both modes to see the measured completion time and collision totals.<br>
+          The end-of-run report appears here automatically when all tasks are done.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ Config Modal ══ -->
+<div id="modal-bg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;
+  display:none;justify-content:center;align-items:center">
+  <div style="background:var(--surface);border-radius:10px;padding:24px;width:380px;box-shadow:var(--shadow-md)">
+    <div style="font-size:15px;font-weight:700;margin-bottom:16px">Configure Simulation</div>
+    <div class="cfg-grid">
+      <div class="cfg-field">
+        <label class="cfg-label">Robots</label>
+        <select class="cfg-input" id="cfg-robots">
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </div>
+      <div class="cfg-field">
+        <label class="cfg-label">Tasks</label>
+        <input class="cfg-input" id="cfg-tasks" type="number" min="3" max="30" value="12">
+      </div>
+      <div class="cfg-field">
+        <label class="cfg-label">Seed</label>
+        <input class="cfg-input" id="cfg-seed" type="number" min="0" value="1">
+      </div>
+      <div class="cfg-field">
+        <label class="cfg-label">Tick Delay (s)</label>
+        <input class="cfg-input" id="cfg-delay" type="number" min="0.05" max="2" step="0.05" value="0.25">
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px">
+      <label class="cfg-check">
+        <input type="checkbox" id="cfg-blocks" checked> Enable aisle blockages
+      </label>
+      <label class="cfg-check">
+        <input type="checkbox" id="cfg-kill"> Kill Robot 1 at tick 10 (battery failure demo)
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeConfig()">Cancel</button>
+      <button class="btn primary" onclick="applyConfig()">▶ Start Simulation</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────────
+const CELL = 36;
+const COLORS = ['#3b82f6','#d97706','#7c3aed','#db2777','#059669'];
+const RING   = {moving:'#22c55e',yielding:'#f97316',waiting:'#eab308',
+                parked:'#94a3b8',idle:'#94a3b8',dead:'#ef4444'};
+
+const cv = document.getElementById('cv');
+const g  = cv.getContext('2d');
+const $  = id => document.getElementById(id);
+
+// ── State ──────────────────────────────────────────────────────────────────────
+let isPaused = false;
+let deadlockCount = 0;
+let taskDone = new Set();
+let taskClaimed = {};      // tid → robot id
+let taskTotal = 0;
+let lastMode = 'swarm';
+let simCfg = {robots:3,tasks:12,seed:1,blocks:true,delay:0.25,kill_robot:null};
+
+// ── Drawing ────────────────────────────────────────────────────────────────────
+function drawGrid(d) {
+  const cells = new Set(d.map.map(c => c[0]+','+c[1]));
+  const W = Math.max(...d.map.map(c=>c[0]))+1;
+  const H = Math.max(...d.map.map(c=>c[1]))+1;
+  cv.width = W*CELL; cv.height = H*CELL;
+  g.clearRect(0,0,cv.width,cv.height);
+
+  // Background tiles
+  for (let y=0;y<H;y++) for(let x=0;x<W;x++) {
+    g.fillStyle = cells.has(x+','+y) ? '#1e293b' : '#0b1120';
+    g.fillRect(x*CELL,y*CELL,CELL,CELL);
+    g.strokeStyle='#0f172a'; g.lineWidth=1; g.strokeRect(x*CELL,y*CELL,CELL,CELL);
+  }
+
+  // Bay labels
+  g.fillStyle='#475569'; g.font='8px Inter,sans-serif'; g.textAlign='center';
+  d.map.forEach(([x,y])=>{
+    if(y===0){ g.fillStyle='#475569'; g.fillText('BAY',x*CELL+CELL/2,y*CELL+CELL-5); }
+    if(y===H-1){ g.fillStyle='#854d0e'; g.fillRect(x*CELL,y*CELL,CELL,CELL);
+      g.fillStyle='#fef3c7'; g.fillText('STG',x*CELL+CELL/2,y*CELL+CELL-5); }
+  });
+
+  // Blocked aisles
+  d.blocked.forEach(([x,y])=>{
+    g.fillStyle='rgba(127,29,29,.8)'; g.fillRect(x*CELL,y*CELL,CELL,CELL);
+    g.fillStyle='#fca5a5'; g.font='bold 14px sans-serif'; g.textAlign='center';
+    g.fillText('✕',x*CELL+CELL/2,y*CELL+CELL/2+5);
+  });
+
+  // Contested cells (yield events this tick)
+  d.conflicts.forEach(([x,y])=>{
+    g.strokeStyle='#f97316'; g.lineWidth=2.5;
+    g.strokeRect(x*CELL+2,y*CELL+2,CELL-4,CELL-4);
+  });
+
+  // Robots
+  d.robots.forEach(r=>{
+    const cx=r.x*CELL+CELL/2, cy=r.y*CELL+CELL/2;
+    const col = COLORS[r.id%COLORS.length];
+    // shadow
+    g.beginPath(); g.arc(cx,cy,15,0,2*Math.PI);
+    g.fillStyle='rgba(0,0,0,.3)'; g.fill();
+    // body
+    g.beginPath(); g.arc(cx,cy,13,0,2*Math.PI);
+    g.fillStyle=col; g.fill();
+    // state ring
+    g.lineWidth=2.5; g.strokeStyle=RING[r.state]||'#94a3b8'; g.stroke();
+    // label
+    g.fillStyle='#fff'; g.font='bold 10px Inter,sans-serif'; g.textAlign='center';
+    g.fillText('R'+r.id,cx,cy+4);
+    // cargo indicator
+    if(r.carrying){
+      g.fillStyle='#fff'; g.beginPath();
+      g.roundRect(cx+7,cy-16,9,9,2); g.fill();
+      g.fillStyle='#1e293b'; g.font='7px sans-serif';
+      g.fillText('📦',cx+11,cy-8);
+    }
+    // dead X
+    if(r.state==='dead'){
+      g.fillStyle='#ef4444'; g.font='bold 11px sans-serif';
+      g.fillText('✕',cx,cy+4);
+    }
+  });
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function render(d) {
+  // KPIs
+  const colEl = $('kpi-col');
+  colEl.textContent = d.collisions;
+  colEl.className = 'kpi-val ' + (d.collisions===0?'ok':'bad');
+  $('kpi-done').textContent = d.done;
+  $('kpi-done-sub').textContent = 'of '+d.total+' tasks';
+  $('kpi-tick').textContent = d.t;
+  $('sim-tick-label').textContent = 'Tick '+d.t+' · '+d.done+'/'+d.total+' done';
+
+  drawGrid(d);
+
+  // Task tracking from events
+  d.log.forEach(line => {
+    if(line.includes('done')) {
+      const m = line.match(/R(\d+) done (T\w+)/);
+      if(m) taskDone.add(m[2]);
+    }
+    if(line.includes('claim')) {
+      const m = line.match(/R(\d+) claim(ed)? (T\w+)/);
+      if(m) taskClaimed[m[3]] = parseInt(m[1]);
+    }
+  });
+  taskTotal = d.total;
+
+  // Fleet status
+  const active = d.robots.filter(r=>r.state!=='dead'&&r.state!=='parked'&&r.state!=='idle').length;
+  $('active-badge').textContent = active + ' ACTIVE';
+  $('active-badge').className = 'card-badge ' + (active>0?'live':'idle');
+
+  $('robot-list').innerHTML = d.robots.map(r => {
+    const col = COLORS[r.id%COLORS.length];
+    const battLow = r.battery < 20;
+    return `
+    <div class="robot-item">
+      <div class="robot-top">
+        <div class="robot-name">
+          <div class="robot-avatar" style="background:${col}">R${r.id}</div>
+          Robot ${r.id}
+        </div>
+        <div class="r-state ${r.state}">${r.state}</div>
+      </div>
+      <div class="robot-task">
+        ${r.task ? '📦 Task: <b>'+r.task+'</b>' : '<span style="color:var(--faint)">No active assignment</span>'}
+        ${r.carrying ? ' · <b style="color:var(--green)">Carrying cargo</b>' : ''}
+      </div>
+      <div class="batt-wrap">
+        <div class="batt-bar">
+          <div class="batt-fill ${battLow?'low':''}" style="width:${r.battery}%"></div>
+        </div>
+        <div class="batt-pct">${r.battery}%</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Coordination feed
+  $('feed').innerHTML = d.log.slice(-12).reverse().map(line => {
+    let cls = '';
+    const rMatch = line.match(/R(\d+)/);
+    if(rMatch) cls = `feed-r${rMatch[1]}`;
+    if(line.includes('yield')) cls += ' feed-yield';
+    else if(line.includes('done')) cls += ' feed-done';
+    else if(line.includes('claim')) cls += ' feed-claim';
+    else if(line.includes('dead')) cls += ' feed-dead';
+    else if(line.includes('staged')) cls += ' feed-staged';
+    const tMatch = line.match(/^t=(\d+)/);
+    const tStr = tMatch ? `<span class="feed-t">t=${tMatch[1]}</span>` : '';
+    const rest = tMatch ? line.slice(tMatch[0].length).trim() : line;
+    return `<div class="feed-line ${cls}">${tStr}${rest}</div>`;
+  }).join('');
+
+  // Badge
+  $('grid-badge').textContent = isPaused ? 'PAUSED' : (d.done>=d.total?'DONE':'RUNNING');
+  $('grid-badge').className = 'card-badge ' + (isPaused?'idle': d.done>=d.total?'idle':'live');
+}
+
+function showReport(r) {
+  const pass = r.swarm_collisions===0 && r.improvement_pct!==null && r.improvement_pct>=20;
+  deadlockCount += (r.deadlock?1:0);
+  $('kpi-dl').textContent = deadlockCount;
+  $('report-panel').innerHTML = `
+    <table class="report-table">
+      <tr><td>SwarmSync (decentralized)</td>
+          <td class="ok">${r.swarm_makespan} ticks</td></tr>
+      <tr><td>Centralized stop-and-wait</td>
+          <td>${r.central_makespan} ticks</td></tr>
+      <tr><td>Improvement</td>
+          <td class="${r.improvement_pct>=20?'ok':'bad'}">${r.improvement_pct}%</td></tr>
+      <tr><td>Swarm collisions</td>
+          <td class="${r.swarm_collisions===0?'ok':'bad'}">${r.swarm_collisions}</td></tr>
+      <tr><td>Uncoordinated collisions</td>
+          <td class="bad">${r.uncoordinated_collisions}</td></tr>
+      <tr><td>Tasks completed</td>
+          <td>${r.tasks_done}/${r.tasks_total}</td></tr>
+      <tr><td>Fleet size · Seed</td>
+          <td>${r.robots} robots · seed ${r.seed}</td></tr>
+    </table>
+    <div class="verdict ${pass?'pass':'fail'}">
+      ${pass ? '✓ Meets both SIH criteria: 0 collisions + ≥20% faster'
+             : '✗ Criteria not met this run — check benchmark.py for averages'}
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--faint)">
+      This is a single run. See benchmark.py for 20-seed averaged results.
+    </div>`;
+  $('grid-badge').textContent = 'DONE';
+  $('grid-badge').className = 'card-badge idle';
+
+  // Update task queue with final states
+  renderTasks(r.tasks_done, r.tasks_total);
+}
+
+function renderTasks(done, total) {
+  const rows = [];
+  for(let i=0;i<total;i++){
+    const tid = 'T'+i;
+    const isDone = taskDone.has(tid);
+    const claimer = taskClaimed[tid];
+    const col = claimer!==undefined ? COLORS[claimer%COLORS.length] : '';
+    rows.push(`<div class="task-row">
+      <span class="task-id">${tid}</span>
+      <span class="task-route">${claimer!==undefined?`→ R${claimer}`:''}</span>
+      <span class="task-status ${isDone?'ts-done':claimer!==undefined?'ts-claimed':'ts-open'}">
+        ${isDone?'DONE':claimer!==undefined?'CLAIMED':'OPEN'}
+      </span>
+    </div>`);
+  }
+  $('task-list').innerHTML = rows.join('') || '<div style="color:var(--faint);text-align:center;padding:12px;font-size:12px">No tasks yet</div>';
+  $('task-badge').textContent = (total-done)+' QUEUED';
+  $('task-badge').className = 'card-badge '+(total-done>0?'':'idle');
+}
+
+// ── Controls ───────────────────────────────────────────────────────────────────
+function api(action, extra={}) {
+  return fetch('http://localhost:8081/api/control', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({action, ...simCfg, ...extra})
+  }).catch(e => console.warn('Control API:', e));
+}
+
+function handlePause() {
+  isPaused = !isPaused;
+  const btn = $('btn-pause');
+  if(isPaused){
+    btn.innerHTML = '<span class="btn-icon">▶</span> Play';
+    btn.className = 'btn green';
+    api('pause');
+  } else {
+    btn.innerHTML = '<span class="btn-icon">⏸</span> Pause';
+    btn.className = 'btn primary';
+    api('play');
+  }
+}
+
+function handleStop() {
+  if(!confirm('Stop the simulation? All robots will halt.')) return;
+  isPaused = false;
+  $('btn-pause').innerHTML = '<span class="btn-icon">⏸</span> Pause';
+  $('btn-pause').className = 'btn primary';
+  $('grid-badge').textContent = 'STOPPED';
+  $('grid-badge').className = 'card-badge idle';
+  api('stop');
+}
+
+function setMode(mode) {
+  lastMode = mode;
+  $('mode-swarm').className   = mode==='swarm'  ?'active':'';
+  $('mode-central').className = mode==='central'?'active':'';
+  // Mode is informational for the toggle — real comparison runs automatically at end of SwarmSync run
+}
+
+function openConfig() {
+  $('modal-bg').style.display = 'flex';
+}
+function closeConfig() {
+  $('modal-bg').style.display = 'none';
+}
+function applyConfig() {
+  simCfg = {
+    robots:  parseInt($('cfg-robots').value),
+    tasks:   parseInt($('cfg-tasks').value),
+    seed:    parseInt($('cfg-seed').value),
+    blocks:  $('cfg-blocks').checked,
+    delay:   parseFloat($('cfg-delay').value),
+    kill_robot: $('cfg-kill').checked ? '1@10' : null
+  };
+  closeConfig();
+  // reset UI
+  taskDone = new Set(); taskClaimed = {}; deadlockCount = 0; isPaused = false;
+  $('btn-pause').innerHTML = '<span class="btn-icon">⏸</span> Pause';
+  $('btn-pause').className = 'btn primary';
+  $('kpi-col').textContent = '0'; $('kpi-col').className = 'kpi-val ok';
+  $('kpi-done').textContent = '0'; $('kpi-tick').textContent = '—';
+  $('report-panel').innerHTML = '<div style="font-size:12px;color:var(--muted);line-height:1.7">Run comparison will appear here when the simulation finishes.</div>';
+  $('sim-info').textContent = `Seed ${simCfg.seed} · ${simCfg.robots} robots · ${simCfg.tasks} tasks · blocks ${simCfg.blocks?'ON':'OFF'}${simCfg.kill_robot?' · kill R1@t10':''}`;
+  api('reset');
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────────────
+function connect() {
+  const proto = location.protocol==='https:'?'wss://':'ws://';
+  const ws = new WebSocket(proto + location.host + '/ws/fleet');
+  ws.onopen = ()=>{
+    $('dot').className = 'dot';
+    $('link').textContent = 'Connected';
+  };
+  ws.onclose = ()=>{
+    $('dot').className = 'dot off';
+    $('link').textContent = 'Offline — reconnecting…';
+    setTimeout(connect, 1500);
+  };
+  ws.onerror = ()=>{ $('link').textContent = 'Error'; };
+  ws.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      if(d.report) showReport(d.report);
+      else if(d.robots) {
+        render(d);
+        renderTasks(d.done, d.total);
+      }
+    } catch(err){ console.error(err); }
+  };
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+$('sim-info').textContent = `Seed ${simCfg.seed} · ${simCfg.robots} robots · ${simCfg.tasks} tasks · blocks ON`;
+connect();
+</script>
+</body>
+</html>

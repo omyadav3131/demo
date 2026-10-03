@@ -1,0 +1,31 @@
+services:
+  mosquitto:                       # LOCAL broker inside the warehouse network (no cloud)
+    image: eclipse-mosquitto:2
+    volumes: ["./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"]
+    ports: ["1883:1883"]
+
+  backend:
+    build: ./backend
+    environment: { SWARM_MQTT_URL: "tcp://mosquitto:1883" }
+    ports: ["8080:8080"]
+    depends_on: [mosquitto]
+
+  robot0: &robot
+    build: ./sim
+    command: ["python", "mqtt_robot.py", "0"]
+    environment: { MQTT_HOST: mosquitto, DEPTH: "1" }
+    depends_on: [mosquitto]
+  robot1: { <<: *robot, command: ["python", "mqtt_robot.py", "1"] }
+  robot2: { <<: *robot, command: ["python", "mqtt_robot.py", "2"] }
+
+  world:
+    build: ./sim
+    command: ["python", "mqtt_world.py", "--robots", "3", "--tasks", "12", "--seed", "1", "--delay", "0.25", "--blocks"]
+    environment: { MQTT_HOST: mosquitto }
+    depends_on: [robot0, robot1, robot2, backend]
+    restart: "no"
+
+  bench:                           # docker compose --profile bench run --rm bench
+    build: ./sim
+    command: ["python", "benchmark.py"]
+    profiles: ["bench"]
